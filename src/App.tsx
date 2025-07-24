@@ -101,48 +101,64 @@ function App() {
       
       const utterance = new SpeechSynthesisUtterance(pronunciation)
       utterance.rate = 0.7
-      utterance.pitch = voiceGender === 'female' ? 1.3 : 0.9
+      utterance.pitch = voiceGender === 'female' ? 1.3 : 0.8
       utterance.volume = 0.8
       
       // Set language based on mode
       if (mode === 'nepali') {
-        utterance.lang = 'ne-NP' // Nepali language
+        utterance.lang = 'hi-IN' // Use Hindi for better Nepali pronunciation
       } else {
         utterance.lang = 'en-US' // English language
       }
       
-      // Try to select voice based on gender preference
-      const voices = speechSynthesis.getVoices()
-      if (voices.length > 0) {
-        const preferredVoice = voices.find(voice => {
-          const voiceName = voice.name.toLowerCase()
-          const isCorrectLang = mode === 'nepali' ? 
-            voice.lang.startsWith('ne') || voice.lang.startsWith('hi') : 
-            voice.lang.startsWith('en')
+      // Wait for voices to load, then select voice
+      const selectVoice = () => {
+        const voices = speechSynthesis.getVoices()
+        if (voices.length > 0) {
+          let selectedVoice = null
           
-          if (voiceGender === 'female') {
-            return isCorrectLang && (voiceName.includes('female') || voiceName.includes('woman') || voiceName.includes('samantha') || voiceName.includes('zira'))
+          // For Nepali, try to find Hindi or Nepali voices
+          if (mode === 'nepali') {
+            selectedVoice = voices.find(voice => 
+              voice.lang.startsWith('hi') || voice.lang.startsWith('ne')
+            )
           } else {
-            return isCorrectLang && (voiceName.includes('male') || voiceName.includes('man') || voiceName.includes('david') || voiceName.includes('mark'))
+            // For English, find gender-specific voices
+            const genderKeywords = voiceGender === 'female' 
+              ? ['female', 'woman', 'samantha', 'zira', 'susan', 'karen', 'hazel', 'moira', 'tessa', 'veena', 'fiona']
+              : ['male', 'man', 'david', 'mark', 'daniel', 'alex', 'tom', 'fred', 'jorge', 'aaron']
+            
+            selectedVoice = voices.find(voice => {
+              const voiceName = voice.name.toLowerCase()
+              const voiceURI = voice.voiceURI.toLowerCase()
+              return voice.lang.startsWith('en') && 
+                     genderKeywords.some(keyword => 
+                       voiceName.includes(keyword) || voiceURI.includes(keyword)
+                     )
+            })
+            
+            // If no gender-specific voice found, try to find any English voice
+            if (!selectedVoice) {
+              selectedVoice = voices.find(voice => voice.lang.startsWith('en'))
+            }
           }
-        })
-        
-        if (preferredVoice) {
-          utterance.voice = preferredVoice
-        } else {
-          // Fallback: find any voice of correct language
-          const langVoice = voices.find(voice => 
-            mode === 'nepali' ? 
-              voice.lang.startsWith('ne') || voice.lang.startsWith('hi') : 
-              voice.lang.startsWith('en')
-          )
-          if (langVoice) {
-            utterance.voice = langVoice
+          
+          if (selectedVoice) {
+            utterance.voice = selectedVoice
+            console.log(`Selected voice: ${selectedVoice.name} (${selectedVoice.lang}) for ${voiceGender} ${mode}`)
           }
         }
+        
+        speechSynthesis.speak(utterance)
       }
       
-      speechSynthesis.speak(utterance)
+      // If voices are already loaded, select immediately
+      if (speechSynthesis.getVoices().length > 0) {
+        selectVoice()
+      } else {
+        // Wait for voices to load
+        speechSynthesis.onvoiceschanged = selectVoice
+      }
     }
   }, [mode, voiceGender])
 
